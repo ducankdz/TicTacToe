@@ -1,9 +1,15 @@
+import java.awt.BorderLayout;
+import java.awt.Dimension;
 import java.awt.EventQueue;
 import java.awt.Font;
 
 import javax.swing.JFrame;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JSplitPane;
+import javax.swing.JTextArea;
+import javax.swing.JTextField;
 import javax.swing.border.EmptyBorder;
 
 
@@ -28,6 +34,9 @@ public class CaroClient extends JFrame implements ActionListener{
     private BufferedReader in;
     private int playerId;
     private boolean myTurn = false;
+    private JTextArea chatArea; // Khu vực hiển thị chat
+    private JTextField chatInput; // Ô nhập chat
+    private JButton sendButton; // Nút gửi tin nhắn
 	/**
 	 * Launch the application.
 	 */
@@ -53,22 +62,64 @@ public class CaroClient extends JFrame implements ActionListener{
 	public CaroClient(String address) {
 		setTitle("Caro");
 		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-		setBounds(100, 100, 352, 424);
-		contentPane = new JPanel();
-		contentPane.setBorder(new EmptyBorder(5, 5, 5, 5));
+		setSize(600, 400);
+		setLayout(new BorderLayout());
 
-		setContentPane(contentPane);
-		contentPane.setLayout(new GridLayout(0, 3, 0, 0));
+        // Tạo giao diện khu vực chơi cờ caro bên trái
+        JPanel boardPanel = new JPanel();
+        boardPanel.setLayout(new GridLayout(3, 3));
 		for (int i = 0; i < 3; i++) {
             for (int j = 0; j < 3; j++) {
                 buttons[i][j] = new JButton();
                 buttons[i][j].setFont(new Font("Arial", Font.PLAIN, 40));
                 buttons[i][j].setFocusPainted(false);
                 buttons[i][j].addActionListener(this);
-                add(buttons[i][j]);
+                boardPanel.add(buttons[i][j]);
             }
         }
 		
+		// Tạo khu vực chat bên phải
+        JPanel chatPanel = new JPanel();
+        chatPanel.setLayout(new BorderLayout());
+
+        chatArea = new JTextArea();
+        chatArea.setEditable(false);
+        chatArea.setLineWrap(true);
+        chatArea.setWrapStyleWord(true);
+        chatArea.setFont(new Font("Arial", Font.PLAIN, 16)); // Phông chữ lớn hơn
+        JScrollPane chatScroll = new JScrollPane(chatArea);
+        chatScroll.setPreferredSize(new Dimension(250, 300)); // Tăng chiều rộng và chiều cao khung chat
+
+        chatInput = new JTextField();
+        sendButton = new JButton("Send");
+
+        JPanel chatInputPanel = new JPanel();
+        chatInputPanel.setLayout(new BorderLayout());
+        chatInputPanel.add(chatInput, BorderLayout.CENTER);
+        chatInputPanel.add(sendButton, BorderLayout.EAST);
+
+        chatPanel.add(chatScroll, BorderLayout.CENTER);
+        chatPanel.add(chatInputPanel, BorderLayout.SOUTH);
+        sendButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                sendMessage();
+            }
+        });
+
+        chatInput.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                sendMessage();
+            }
+        });
+        
+     // Sử dụng JSplitPane để phân chia khu vực chơi và khu vực chat với tỷ lệ
+        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, boardPanel, chatPanel);
+        splitPane.setResizeWeight(0.8); // Đặt tỷ lệ khu vực chat lớn hơn (1 là toàn bộ chat, 0 là toàn bộ cờ)
+
+        add(splitPane, BorderLayout.CENTER);
+        
 		try {
 			socket = new Socket(address,5055);
 			out = new PrintWriter(socket.getOutputStream(), true);
@@ -119,6 +170,12 @@ public class CaroClient extends JFrame implements ActionListener{
 		                        setTitle("Caro Game - Player " + playerId + (myTurn ? " (Your Turn)" : ""));
 	                        }
 	                    }
+						else if(response.contains("CHAT")) {
+                        	String[] parts = response.trim().split("\\s+");
+							int id = Integer.parseInt(parts[0]);
+							String msg = parts[2];
+                        	chatArea.append("Player " + id + ": " + msg + "\n");
+                        }
 					}
 				} catch (IOException e) {
 					// TODO Auto-generated catch block
@@ -140,6 +197,7 @@ public class CaroClient extends JFrame implements ActionListener{
             	if (myTurn && buttons[i][j].getText().equals("") && (e.getSource() instanceof JButton) && (((JButton) e.getSource()).equals(buttons[i][j]))) {
             		buttons[i][j].setText(playerId == 1 ? "X" : "O");
             		out.println(playerId + " MOVE " + i + " " + j);
+            		out.flush();
             		myTurn = false;
             	}
             }
@@ -208,5 +266,14 @@ public class CaroClient extends JFrame implements ActionListener{
 	    myTurn = (playerId == 1); 
 	    setTitle("Caro Game - Player " + playerId + (myTurn ? " (Your Turn)" : ""));
 	}
+	
+	private void sendMessage() {
+        String message = chatInput.getText().trim();
+        if (!message.isEmpty()) {
+            out.println(playerId + " CHAT " + message);
+            out.flush();
+            chatInput.setText("");
+        }
+    }
 
 }  
